@@ -53,14 +53,6 @@ class MLPNet(nn.Module):
         x = F.softmax(x, dim=1)
         return x
 
-# 学習過程でうまく学習できているか監視するために，損失関数だけでなく
-# accuracyも見ることにする.そのためにもaccuracyを確認する関数を定義する
-def binary_acc(y_true, y_pred):
-    # torch.eq()で2つのテンソルで値が一致する数をカウントする
-    correct = torch.eq(y_true, y_pred).sum().item()
-    acc = (correct / len(y_pred)) * 100
-    return acc
-
 # 5分割交差検証の準備
 kf = KFold(n_splits=10, shuffle=True, random_state=42)
 train_loss_li = []
@@ -77,9 +69,6 @@ def objective(trial, train_dataset, valid_dataset, input_size):
     weight_decay = trial.suggest_float('weight_decay', 1e-8, 1e-2, log=True)
     batch_size = trial.suggest_int('batch_size', 8, 64)
     input_size = input_size
-
-    # 各foldの評価メトリクスを格納するリスト
-    val_losses = []
     
     # DataLoaderを作成
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -98,9 +87,14 @@ def objective(trial, train_dataset, valid_dataset, input_size):
     
     # モデルをトレーニング
     model.train()
+    train_loss_li = []
+    train_acc_li = []
     num_epochs = 200  # 例として200エポック
+    train_loss = 0
+    train_correct = 0
+    total = 0
     for epoch in range(num_epochs):
-        for inputs, targets in train_loader:
+        for batch_idx,(inputs, targets) in train_loader:
             outputs = model(inputs)
             loss = criterion(outputs, targets)
             optimizer.zero_grad()
@@ -110,13 +104,21 @@ def objective(trial, train_dataset, valid_dataset, input_size):
                 total += targets.size(0)
                 train_correct += predicted.eq(targets.data).cpu().sum().float()
             optimizer.step()
-
+    train_loss_li.append(train_loss / batch_idx)
+    train_acc_li.append(train_correct / total *100)
+            
+    val_loss_li = []
+    val_acc_li = []
     # バリデーションデータでモデルを評価します
     model.eval()
     with torch.no_grad():
-        for inputs, targets in valid_loader:
+        for batch_idx, (inputs, targets) in valid_loader:
             outputs = model(inputs)
             loss = criterion(outputs, targets)
+            total += targets.size(0)
+            valid_correct += predicted.eq(targets.data).cpu().sum().float()
+    val_loss_li.append(loss.item)
+    val_acc_li.append(train_correct / total *100)
 
     return loss.item()
 
