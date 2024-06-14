@@ -213,7 +213,7 @@ def test(epoch,X, Y,threshold):
     if acc > best_acc:
         best_acc = acc
     print(f"batch_idx: {batch_idx}")
-    return (test_loss, acc, precision, specificity, recall, f1)
+    return (loss.item(), acc, precision, specificity, recall, f1)
 
 def evaluation(true_label, pred_label):
     # ユニークなクラスラベルを取得
